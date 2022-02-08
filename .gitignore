@@ -1,0 +1,6 @@
+__pycache__/
+prerender/
+venv/
+waymo_motion_prediction_orig_dirty_code_trained_model.zip
+xception71/
+viz/
