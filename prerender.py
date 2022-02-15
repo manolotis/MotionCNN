@@ -313,13 +313,14 @@ def rasterize(
             agents_ids,
             GT_XY,
             future_valid,
-            tracks_to_predict.flatten(),
+            # tracks_to_predict.flatten(),
+            agents_ids.flatten() > -1,
         )
     ):
         if (not validate and future_val.sum() == 0) or (validate and predict == 0):
             continue
-        if current_val == 0:
-            continue
+        # if current_val == 0:
+        #     continue
 
         RES_ROADMAP = (
                 np.ones((raster_size, raster_size, 3), dtype=np.uint8) * MAX_PIXEL_VALUE
@@ -474,8 +475,10 @@ def rasterize(
             "_gt_marginal": gt_xy,
             "gt_marginal": centered_gt,
             "future_val_marginal": future_val,
-            "gt_joint": GT_XY[tracks_to_predict.flatten() > 0],
-            "future_val_joint": future_valid[tracks_to_predict.flatten() > 0],
+            # "gt_joint": GT_XY[tracks_to_predict.flatten() > 0],
+            "gt_joint": GT_XY,
+            "future_val_joint": future_valid,
+            # "future_val_joint": future_valid[tracks_to_predict.flatten() > 0],
             "scenario_id": scenario_id,
             "self_type": self_type,
         }
@@ -629,13 +632,14 @@ def vectorize(
         W,
         L,
         future_valid,
-        tracks_to_predict.flatten(),
+        # tracks_to_predict.flatten(),
+        Agent_id.flatten() > -1,
     ):
 
         if (not validate and future_val.sum() == 0) or (validate and predict == 0):
             continue
-        if current_val == 0:
-            continue
+        # if current_val == 0:
+        #     continue
 
         GLOBAL_IDX = -1
         RES = []
@@ -686,7 +690,8 @@ def vectorize(
             Vyaw,
             W.flatten(),
             L.flatten(),
-            tracks_to_predict.flatten(),
+            Agent_id.flatten() > 1,
+            # tracks_to_predict.flatten(),
         ):
             if other_valids.sum() == 0:
                 continue
