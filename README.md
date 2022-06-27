@@ -1,13 +1,14 @@
-# Waymo motion prediction challenge 2021: 3rd place solution
+# Waymo motion prediction challenge 2021: 3rd place solution 
 
 ![header](docs/header.png)
 
-- 📜[**Technical report**](./docs/CVPR2021_Waymo_motion_prediction.pdf)   
+- 📜[**Paper**](https://arxiv.org/abs/2206.02163)  
 - 🗨️[Presentation](./docs/waymo_motion_prediction_2021_3rd_place_solution_presentation.pdf)  
 - 🎉[Announcement](https://youtu.be/eOL_rCK59ZI?t=6485)    
 - 🛆[Motion Prediction Channel Website](https://waymo.com/open/challenges/2021/motion-prediction/)  
 - 🛆[CVPR2021 workshop](http://cvpr2021.wad.vision/)  
 
+-  **UPDATE❗** Related repo with [3rd place solution code](https://github.com/stepankonev/waymo-motion-prediction-challenge-2022-multipath-plus-plus) for Waymo Motion Prediction Challenge 2022 
 
 ## Team behind this solution:
 1. Artsiom Sanakoyeu [[Homepage](https://gdude.de)] [[Twitter](https://twitter.com/artsiom_s)] [[Telegram Channel](https://t.me/gradientdude)] [[LinkedIn](https://www.linkedin.com/in/sanakoev)]
@@ -86,6 +87,7 @@ If you find our work useful, please cite it as:
   title={MotionCNN: A Strong Baseline for Motion Prediction in Autonomous Driving},
   author={Konev, Stepan and Brodt, Kirill and Sanakoyeu, Artsiom},
   year={2021}
+  booktitle={Workshop on Autonomous Driving, CVPR}
 }
 ```
 
