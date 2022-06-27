@@ -9,6 +9,7 @@ import tensorflow as tf
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error
 from tqdm import tqdm
+from WaymoClassification import config
 
 # allow memory growth on GPU, if gpu exists
 try:
@@ -19,8 +20,8 @@ except IndexError:
 
 numcodecs.blosc.set_nthreads(1)
 
-# DATA_PATH = "/home/data/waymo/testing/"
-DATA_PATH = "/home/manolotis/waymo/motion v1.0/uncompressed/tf_example/validation/"
+
+DATA_PATH = config.TEST_FOLDER
 files = sorted(os.listdir(DATA_PATH))
 
 # dataset = dataset.shard(8, 0)
@@ -837,12 +838,15 @@ def merge(data, proc_id, validate):
     idx2type = ["unset", "vehicle", "pedestrian", "cyclist", "other"]
 
     to_return = []
+
+    if not os.path.exists(config.MOTION_CNN_TEST_DATA):
+        os.mkdir(config.MOTION_CNN_TEST_DATA)
+
     for i in range(len(raster_data)):
         raster_data[i]["vector_data"] = vector_data[i].astype(np.float16)
         filename = f"{idx2type[int(raster_data[i]['self_type'])]}_{proc_id}_{str(i).zfill(5)}_{np.random.randint(10000000000)}.npz"
         np.savez_compressed(
-            # f"/home/manolotis/waymo/motion v1.0/uncompressed/tf_example/MotionCNNprerender/val/{filename}",
-            f"/home/manolotis/waymo/motion v1.0/uncompressed/tf_example/MotionCNNprerender/test/{filename}",
+            f"{config.MOTION_CNN_TEST_DATA}{filename}",
             **raster_data[i],
         )
         to_return.append(
@@ -866,35 +870,37 @@ if __name__ == "__main__":
     num_parallel_calls, prefetch_size = tf.data.AUTOTUNE, tf.data.AUTOTUNE
 
     # slices = [(0, 50), (50, 100), (100, 150)]
-    slices = [(100, 150)]
-    for slice in slices:
-        start, end = slice[0], slice[1]
-        print("slice", slice)
+    # slices = [(100, 150)]
+    # slices = [(0, -1)]
+    # for slice in slices:
+    # start, end = slice[0], slice[1]
+    # print("slice", slice)
 
-        dataset = tf.data.TFRecordDataset([DATA_PATH + f for f in files[start:end]], num_parallel_reads=1)
-        dataset = dataset.map(parse_example, num_parallel_calls=num_parallel_calls)
-        dataset = dataset.prefetch(prefetch_size)
+    # dataset = tf.data.TFRecordDataset([DATA_PATH + f for f in files[start:end]], num_parallel_reads=1)
+    dataset = tf.data.TFRecordDataset([DATA_PATH + f for f in files], num_parallel_reads=1)
+    dataset = dataset.map(parse_example, num_parallel_calls=num_parallel_calls)
+    dataset = dataset.prefetch(prefetch_size)
 
-        for data in tqdm(dataset.as_numpy_iterator()):
-            # for data in tqdm(dataset):
+    for data in tqdm(dataset.as_numpy_iterator()):
+        # for data in tqdm(dataset):
 
-            proc_id += 1
-            res.append(
-                # p.apply_async(merge, kwds=dict(data=data, proc_id=proc_id, validate=True))
-                p.apply_async(merge, kwds=dict(data=data, proc_id=proc_id, validate=False))
-            )
+        proc_id += 1
+        res.append(
+            # p.apply_async(merge, kwds=dict(data=data, proc_id=proc_id, validate=True))
+            p.apply_async(merge, kwds=dict(data=data, proc_id=proc_id, validate=False))
+        )
 
-            # kwds = dict(data=data, proc_id=proc_id, validate=True)
-            # merge(**kwds)
+        # kwds = dict(data=data, proc_id=proc_id, validate=True)
+        # merge(**kwds)
 
-            # if asd == 10:
-            # break
-            # asd += 1
+        # if asd == 10:
+        # break
+        # asd += 1
 
-        print(len(res))
+        # print(len(res))
 
         for r in tqdm(res):
             loss_index.extend(r.get())
 
     df = pd.DataFrame(loss_index)
-    df.to_csv("/home/manolotis/waymo/motion v1.0/uncompressed/tf_example/motion_cnn_loss_index.csv", index=False)
+    df.to_csv(f"{config.ROOT}{config.WAYMO_BASE_PATH}/motion_cnn_loss_index.csv", index=False)
