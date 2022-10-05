@@ -52,6 +52,13 @@ def parse_args():
         help="Number of trajectories to predict",
     )
     parser.add_argument(
+        "--n-jobs",
+        type=int,
+        required=False,
+        default=16,
+        help="Number of workers for data loading",
+    )
+    parser.add_argument(
         "--save", type=str, required=True, help="Path to save model and logs"
     )
 
@@ -209,7 +216,7 @@ def main():
     dataset = WaymoLoader(train_path)
 
     batch_size = args.batch_size
-    num_workers = min(16, batch_size)
+    num_workers = min(args.n_jobs, batch_size)
     dataloader = DataLoader(
         dataset,
         batch_size=batch_size,
