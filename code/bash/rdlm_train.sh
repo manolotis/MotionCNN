@@ -12,4 +12,4 @@ python /home/manolotis/sandbox/robustness_benchmark/motionCNN/train.py \
     --batch-size 128 \
     --n-epochs 120 \
     --n-jobs 48 \
-    --n-shards 8
+    --n-shards 16
