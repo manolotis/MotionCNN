@@ -8,6 +8,16 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
+import random
+
+seed = 0
+torch.manual_seed(seed)
+torch.cuda.manual_seed(seed)
+torch.cuda.manual_seed_all(seed)
+np.random.seed(seed)
+random.seed(seed)
+torch.backends.cudnn.benchmark = False
+torch.backends.cudnn.deterministic = True
 
 IMG_RES = 224
 IN_CHANNELS = 25
@@ -77,6 +87,7 @@ def parse_args():
         default=10,
         help="Validate model each `n-validate` steps",
     )
+    # for now ignored. Model is validated on the last iteration of each epoch
     parser.add_argument(
         "--n-monitor-validate",
         type=int,
@@ -100,7 +111,7 @@ def parse_args():
 
 class Model(nn.Module):
     def __init__(
-        self, model_name, in_channels=IN_CHANNELS, time_limit=TL, n_traj=N_TRAJS
+            self, model_name, in_channels=IN_CHANNELS, time_limit=TL, n_traj=N_TRAJS
     ):
         super().__init__()
 
@@ -113,13 +124,12 @@ class Model(nn.Module):
             num_classes=self.n_traj * 2 * self.time_limit + self.n_traj,
         )
 
-
     def forward(self, x):
         outputs = self.model(x)
 
         confidences_logits, logits = (
             outputs[:, : self.n_traj],
-            outputs[:, self.n_traj :],
+            outputs[:, self.n_traj:],
         )
         logits = logits.view(-1, self.n_traj, self.time_limit, 2)
 
@@ -148,7 +158,7 @@ def pytorch_neg_multi_log_likelihood_batch(gt, logits, confidences, avails):
     )  # reduce coords and use availability
 
     with np.errstate(
-        divide="ignore"
+            divide="ignore"
     ):  # when confidence is 0 log goes to -inf, but we're fine with it
         # error (batch_size, num_modes)
         error = nn.functional.log_softmax(confidences, dim=1) - 0.5 * torch.sum(
@@ -268,12 +278,13 @@ def main():
     )
 
     start_iter = 0
+    start_epoch = 0
     best_loss = float("+inf")
     glosses = []
 
     tr_it = iter(dataloader)
     n_epochs = args.n_epochs
-    progress_bar = tqdm(range(start_iter, len(dataloader) * n_epochs))
+    # progress_bar = tqdm(range(start_iter, len(dataloader) * n_epochs))
 
     saver = lambda name: torch.save(
         {
@@ -287,71 +298,76 @@ def main():
         os.path.join(path_to_save, name),
     )
 
-    for iteration in progress_bar:
-        model.train()
-        try:
-            x, y, is_available = next(tr_it)
-        except StopIteration:
-            tr_it = iter(dataloader)
-            x, y, is_available = next(tr_it)
+    for epoch in range(n_epochs):
+        progress_bar = tqdm(range(start_iter, len(dataloader)))
 
-        x, y, is_available = map(lambda x: x.cuda(), (x, y, is_available))
+        for iteration in progress_bar:
+            model.train()
+            try:
+                x, y, is_available = next(tr_it)
+            except StopIteration:
+                tr_it = iter(dataloader)
+                x, y, is_available = next(tr_it)
 
-        optimizer.zero_grad()
+            x, y, is_available = map(lambda x: x.cuda(), (x, y, is_available))
 
-        confidences_logits, logits = model(x)
-
-        loss = pytorch_neg_multi_log_likelihood_batch(
-            y, logits, confidences_logits, is_available
-        )
-        loss.backward()
-        optimizer.step()
-        scheduler.step()
-
-        glosses.append(loss.item())
-        if (iteration + 1) % args.n_monitor_train == 0:
-            progress_bar.set_description(
-                f"loss: {loss.item():.3}"
-                f" avg: {np.mean(glosses[-100:]):.2}"
-                f" {scheduler.get_last_lr()[-1]:.3}"
-            )
-            summary_writer.add_scalar("train/loss", loss.item(), iteration)
-            summary_writer.add_scalar("lr", scheduler.get_last_lr()[-1], iteration)
-
-        if (iteration + 1) % args.n_monitor_validate == 0:
             optimizer.zero_grad()
-            model.eval()
-            with torch.no_grad():
-                val_losses = []
-                for x, y, is_available in val_dataloader:
-                    x, y, is_available = map(lambda x: x.cuda(), (x, y, is_available))
 
-                    confidences_logits, logits = model(x)
-                    loss = pytorch_neg_multi_log_likelihood_batch(
-                        y, logits, confidences_logits, is_available
-                    )
-                    val_losses.append(loss.item())
+            confidences_logits, logits = model(x)
 
-                summary_writer.add_scalar("dev/loss", np.mean(val_losses), iteration)
+            loss = pytorch_neg_multi_log_likelihood_batch(
+                y, logits, confidences_logits, is_available
+            )
+            loss.backward()
+            optimizer.step()
+            scheduler.step()
 
-            saver("model_last.pth")
+            glosses.append(loss.item())
+            if (iteration + 1) % args.n_monitor_train == 0:
+                progress_bar.set_description(
+                    f"loss: {loss.item():.3}"
+                    f" avg: {np.mean(glosses[-100:]):.2}"
+                    f" {scheduler.get_last_lr()[-1]:.3}"
+                    f" epoch: {epoch}"
+                )
+                summary_writer.add_scalar("train/loss", loss.item(), iteration)
+                summary_writer.add_scalar("lr", scheduler.get_last_lr()[-1], iteration)
 
-            mean_val_loss = np.mean(val_losses)
-            if mean_val_loss < best_loss:
-                best_loss = mean_val_loss
-                saver("model_best.pth")
-
+            # if (iteration + 1) % args.n_monitor_validate == 0:
+            if (iteration + 1) % len(dataloader) == 0:
+                optimizer.zero_grad()
                 model.eval()
                 with torch.no_grad():
-                    traced_model = torch.jit.trace(
-                        model,
-                        torch.rand(
-                            1, args.in_channels, args.img_res, args.img_res
-                        ).cuda(),
-                    )
+                    val_losses = []
+                    for x, y, is_available in val_dataloader:
+                        x, y, is_available = map(lambda x: x.cuda(), (x, y, is_available))
 
-                traced_model.save(os.path.join(path_to_save, "model_best.pt"))
-                del traced_model
+                        confidences_logits, logits = model(x)
+                        loss = pytorch_neg_multi_log_likelihood_batch(
+                            y, logits, confidences_logits, is_available
+                        )
+                        val_losses.append(loss.item())
+
+                    summary_writer.add_scalar("dev/loss", np.mean(val_losses), iteration)
+
+                saver("model_last.pth")
+
+                mean_val_loss = np.mean(val_losses)
+                if mean_val_loss < best_loss:
+                    best_loss = mean_val_loss
+                    saver("model_best.pth")
+
+                    model.eval()
+                    with torch.no_grad():
+                        traced_model = torch.jit.trace(
+                            model,
+                            torch.rand(
+                                1, args.in_channels, args.img_res, args.img_res
+                            ).cuda(),
+                        )
+
+                    traced_model.save(os.path.join(path_to_save, "model_best.pt"))
+                    del traced_model
 
 
 if __name__ == "__main__":
