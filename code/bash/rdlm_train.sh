@@ -9,6 +9,7 @@ python /home/manolotis/sandbox/robustness_benchmark/motionCNN/train.py \
     --time-limit 80 \
     --n-traj 6 \
     --lr 0.001 \
-    --batch-size 64 \
+    --batch-size 128 \
     --n-epochs 120 \
-    --n-jobs 48
+    --n-jobs 48 \
+    --n-shards 8

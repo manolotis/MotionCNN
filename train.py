@@ -85,6 +85,14 @@ def parse_args():
         help="Validate model each `n-validate` steps",
     )
 
+    parser.add_argument(
+        "--n-shards",
+        type=int,
+        required=False,
+        default=1,
+        help="n_shards",
+    )
+
     args = parser.parse_args()
 
     return args
@@ -154,14 +162,18 @@ def pytorch_neg_multi_log_likelihood_batch(gt, logits, confidences, avails):
 
 
 class WaymoLoader(Dataset):
-    def __init__(self, directory, limit=0, return_vector=False, is_test=False):
+    def __init__(self, directory, limit=0, n_shards=1, return_vector=False, is_test=False):
         files = os.listdir(directory)
         self.files = [os.path.join(directory, f) for f in files if f.endswith(".npz")]
 
+        if limit > 0 and n_shards > 1:
+            raise ValueError("Limiting training data with limit>0 and n_shards>1. Choose one or the other.")
+
+        self.files = sorted(self.files)
         if limit > 0:
             self.files = self.files[:limit]
         else:
-            self.files = sorted(self.files)
+            self.files = [file for (i, file) in enumerate(self.files) if i % n_shards == 0]
 
         self.return_vector = return_vector
         self.is_test = is_test
@@ -213,7 +225,7 @@ def main():
     if not os.path.exists(path_to_save):
         os.mkdir(path_to_save)
 
-    dataset = WaymoLoader(train_path)
+    dataset = WaymoLoader(train_path, n_shards=args.n_shards)
 
     batch_size = args.batch_size
     num_workers = min(args.n_jobs, batch_size)
