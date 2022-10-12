@@ -205,6 +205,13 @@ def parse_arguments():
         required=False,
         help="Take `each` sample in shard",
     )
+    parser.add_argument(
+        "--exclude-road",
+        type=bool,
+        default=False,
+        required=False,
+        help="Exclude road from prerender",
+    )
 
     args = parser.parse_args()
 
@@ -242,6 +249,7 @@ def rasterize(
     shift=2 ** 9,
     magic_const=3,
     n_channels=11,
+    exclude_road=False,
 ):
     GRES = []
     displacement = np.array([[raster_size // 4, raster_size // 2]]) * shift
@@ -459,6 +467,11 @@ def rasterize(
                         shift=9,
                     )
 
+        if exclude_road:
+            #override previous
+            RES_ROADMAP = (
+                    np.ones((raster_size, raster_size, 3), dtype=np.uint8) * MAX_PIXEL_VALUE
+            )
         raster = np.concatenate([RES_ROADMAP] + RES_EGO + RES_OTHER, axis=2)
 
         raster_dict = {
@@ -726,7 +739,7 @@ def vectorize(
 
 
 def merge(
-    data, proc_id, validate, out_dir, use_vectorize=False, max_rand_int=10000000000
+    data, proc_id, validate, out_dir, use_vectorize=False, max_rand_int=10000000000, exclude_road=False
 ):
     parsed = tf.io.parse_single_example(data, features_description)
     raster_data = rasterize(
@@ -755,6 +768,7 @@ def merge(
         parsed["state/future/valid"].numpy(),
         parsed["scenario/id"].numpy()[0].decode("utf-8"),
         validate=validate,
+        exclude_road=exclude_road
     )
 
     if use_vectorize:
@@ -824,6 +838,7 @@ def main():
                     validate=not args.no_valid,
                     out_dir=args.out,
                     use_vectorize=args.use_vectorize,
+                    exclude_road=args.exclude_road
                 ),
             )
         )
