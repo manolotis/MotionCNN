@@ -10,6 +10,6 @@ python /home/manolotis/sandbox/robustness_benchmark/motionCNN/train.py \
     --n-traj 6 \
     --lr 0.001 \
     --batch-size 128 \
-    --n-epochs 120 \
+    --n-epochs 1000 \
     --n-jobs 48 \
     --n-shards 16

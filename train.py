@@ -325,9 +325,9 @@ def main():
             glosses.append(loss.item())
             if (iteration + 1) % args.n_monitor_train == 0:
                 progress_bar.set_description(
-                    f"loss: {loss.item():.3}"
-                    f" avg: {np.mean(glosses[-100:]):.2}"
-                    f" {scheduler.get_last_lr()[-1]:.3}"
+                    f"loss: {loss.item():.3} |"
+                    f" avg: {np.mean(glosses[-100:]):.2} |"
+                    f" lr: {scheduler.get_last_lr()[-1]:.3} |"
                     f" epoch: {epoch}"
                 )
                 summary_writer.add_scalar("train/loss", loss.item(), iteration)
