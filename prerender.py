@@ -219,37 +219,37 @@ def parse_arguments():
 
 
 def rasterize(
-    tracks_to_predict,
-    past_x,
-    past_y,
-    current_x,
-    current_y,
-    current_yaw,
-    past_yaw,
-    past_valid,
-    current_valid,
-    agent_type,
-    roadlines_coords,
-    roadlines_types,
-    roadlines_valid,
-    roadlines_ids,
-    widths,
-    lengths,
-    agents_ids,
-    tl_states,
-    tl_ids,
-    tl_valids,
-    future_x,
-    future_y,
-    future_valid,
-    scenario_id,
-    validate,
-    crop_size=512,
-    raster_size=224,
-    shift=2 ** 9,
-    magic_const=3,
-    n_channels=11,
-    exclude_road=False,
+        tracks_to_predict,
+        past_x,
+        past_y,
+        current_x,
+        current_y,
+        current_yaw,
+        past_yaw,
+        past_valid,
+        current_valid,
+        agent_type,
+        roadlines_coords,
+        roadlines_types,
+        roadlines_valid,
+        roadlines_ids,
+        widths,
+        lengths,
+        agents_ids,
+        tl_states,
+        tl_ids,
+        tl_valids,
+        future_x,
+        future_y,
+        future_valid,
+        scenario_id,
+        validate,
+        crop_size=512,
+        raster_size=224,
+        shift=2 ** 9,
+        magic_const=3,
+        n_channels=11,
+        exclude_road=False,
 ):
     GRES = []
     displacement = np.array([[raster_size // 4, raster_size // 2]]) * shift
@@ -258,7 +258,7 @@ def rasterize(
     # Unknown = 0, Arrow_Stop = 1, Arrow_Caution = 2, Arrow_Go = 3, Stop = 4,
     # Caution = 5, Go = 6, Flashing_Stop = 7, Flashing_Caution = 8
     for tl_state, tl_id, tl_valid in zip(
-        tl_states.flatten(), tl_ids.flatten(), tl_valids.flatten()
+            tl_states.flatten(), tl_ids.flatten(), tl_valids.flatten()
     ):
         if tl_valid == 0:
             continue
@@ -287,25 +287,25 @@ def rasterize(
 
     roadlines_valid = roadlines_valid.reshape(-1)
     roadlines_coords = (
-        roadlines_coords[:, :2][roadlines_valid > 0]
-        * shift
-        * magic_const
-        * raster_size
-        / crop_size
+            roadlines_coords[:, :2][roadlines_valid > 0]
+            * shift
+            * magic_const
+            * raster_size
+            / crop_size
     )
     roadlines_types = roadlines_types[roadlines_valid > 0]
     roadlines_ids = roadlines_ids.reshape(-1)[roadlines_valid > 0]
 
     for _, (
-        xy,
-        current_val,
-        val,
-        _,
-        yaw,
-        agent_id,
-        gt_xy,
-        future_val,
-        predict,
+            xy,
+            current_val,
+            val,
+            _,
+            yaw,
+            agent_id,
+            gt_xy,
+            future_val,
+            predict,
     ) in enumerate(
         zip(
             XY,
@@ -325,7 +325,7 @@ def rasterize(
             continue
 
         RES_ROADMAP = (
-            np.ones((raster_size, raster_size, 3), dtype=np.uint8) * MAX_PIXEL_VALUE
+                np.ones((raster_size, raster_size, 3), dtype=np.uint8) * MAX_PIXEL_VALUE
         )
         RES_EGO = [
             np.zeros((raster_size, raster_size, 1), dtype=np.uint8)
@@ -351,9 +351,9 @@ def rasterize(
 
         centered_roadlines = (roadlines_coords - center_xy) @ rot_matrix + displacement
         centered_others = (
-            XY.reshape(-1, 2) * shift * magic_const * raster_size / crop_size
-            - center_xy
-        ) @ rot_matrix + displacement
+                                  XY.reshape(-1, 2) * shift * magic_const * raster_size / crop_size
+                                  - center_xy
+                          ) @ rot_matrix + displacement
         centered_others = centered_others.reshape(128, n_channels, 2)
         centered_gt = (gt_xy - unscaled_center_xy) @ rot_matrix
 
@@ -365,12 +365,12 @@ def rasterize(
 
                 road_color = road_colors[road_type]
                 for c, rgb in zip(
-                    ["green", "yellow", "red"],
-                    [
-                        (0, MAX_PIXEL_VALUE, 0),
-                        (MAX_PIXEL_VALUE, 211, 0),
-                        (MAX_PIXEL_VALUE, 0, 0),
-                    ],
+                        ["green", "yellow", "red"],
+                        [
+                            (0, MAX_PIXEL_VALUE, 0),
+                            (MAX_PIXEL_VALUE, 211, 0),
+                            (MAX_PIXEL_VALUE, 0, 0),
+                        ],
                 ):
                     if road_id in tl_dict[c]:
                         road_color = rgb
@@ -390,7 +390,8 @@ def rasterize(
         _tmp = 0
         for other_agent_id in unique_agent_ids:
             other_agent_id = int(other_agent_id)
-            if other_agent_id < 1:
+            # if other_agent_id < 1:
+            if other_agent_id < 0:  # invalid
                 continue
             if other_agent_id == agent_id:
                 is_ego = True
@@ -407,44 +408,44 @@ def rasterize(
             agent_w = widths[agents_ids == other_agent_id]
 
             for timestamp, (coord, valid_coordinate, past_yaw,) in enumerate(
-                zip(
-                    agent_lane,
-                    agent_valid.flatten(),
-                    agent_yaw.flatten(),
-                )
+                    zip(
+                        agent_lane,
+                        agent_valid.flatten(),
+                        agent_yaw.flatten(),
+                    )
             ):
                 if valid_coordinate == 0:
                     continue
                 box_points = (
-                    np.array(
-                        [
-                            -agent_l,
-                            -agent_w,
-                            agent_l,
-                            -agent_w,
-                            agent_l,
-                            agent_w,
-                            -agent_l,
-                            agent_w,
-                        ]
-                    )
-                    .reshape(4, 2)
-                    .astype(np.float32)
-                    * shift
-                    * magic_const
-                    / 2
-                    * raster_size
-                    / crop_size
+                        np.array(
+                            [
+                                -agent_l,
+                                -agent_w,
+                                agent_l,
+                                -agent_w,
+                                agent_l,
+                                agent_w,
+                                -agent_l,
+                                agent_w,
+                            ]
+                        )
+                        .reshape(4, 2)
+                        .astype(np.float32)
+                        * shift
+                        * magic_const
+                        / 2
+                        * raster_size
+                        / crop_size
                 )
 
                 box_points = (
-                    box_points
-                    @ np.array(
-                        (
-                            (np.cos(yaw - past_yaw), -np.sin(yaw - past_yaw)),
-                            (np.sin(yaw - past_yaw), np.cos(yaw - past_yaw)),
-                        )
-                    ).reshape(2, 2)
+                        box_points
+                        @ np.array(
+                    (
+                        (np.cos(yaw - past_yaw), -np.sin(yaw - past_yaw)),
+                        (np.sin(yaw - past_yaw), np.cos(yaw - past_yaw)),
+                    )
+                ).reshape(2, 2)
                 )
 
                 _coord = np.array([coord])
@@ -468,7 +469,7 @@ def rasterize(
                     )
 
         if exclude_road:
-            #override previous
+            # override previous
             RES_ROADMAP = (
                     np.ones((raster_size, raster_size, 3), dtype=np.uint8) * MAX_PIXEL_VALUE
             )
@@ -529,35 +530,34 @@ def make_2d(arraylist):
 
 
 def vectorize(
-    past_x,
-    current_x,
-    past_y,
-    current_y,
-    past_valid,
-    current_valid,
-    past_speed,
-    current_speed,
-    past_velocity_yaw,
-    current_velocity_yaw,
-    past_bbox_yaw,
-    current_bbox_yaw,
-    Agent_id,
-    Agent_type,
-    Roadline_id,
-    Roadline_type,
-    Roadline_valid,
-    Roadline_xy,
-    Tl_rl_id,
-    Tl_state,
-    Tl_valid,
-    W,
-    L,
-    tracks_to_predict,
-    future_valid,
-    validate,
-    n_channels=11,
+        past_x,
+        current_x,
+        past_y,
+        current_y,
+        past_valid,
+        current_valid,
+        past_speed,
+        current_speed,
+        past_velocity_yaw,
+        current_velocity_yaw,
+        past_bbox_yaw,
+        current_bbox_yaw,
+        Agent_id,
+        Agent_type,
+        Roadline_id,
+        Roadline_type,
+        Roadline_valid,
+        Roadline_xy,
+        Tl_rl_id,
+        Tl_state,
+        Tl_valid,
+        W,
+        L,
+        tracks_to_predict,
+        future_valid,
+        validate,
+        n_channels=11,
 ):
-
     XY = np.concatenate(
         (
             np.expand_dims(np.concatenate((past_x, current_x), axis=1), axis=-1),
@@ -574,7 +574,7 @@ def vectorize(
     tl_state = [[-1] for _ in range(9)]
 
     for lane_id, state, valid in zip(
-        Tl_rl_id.flatten(), Tl_state.flatten(), Tl_valid.flatten()
+            Tl_rl_id.flatten(), Tl_state.flatten(), Tl_valid.flatten()
     ):
         if valid == 0:
             continue
@@ -616,17 +616,17 @@ def vectorize(
     ROADLINES_STATE = make_2d(ROADLINES_STATE)
 
     for (
-        agent_id,
-        xy,
-        current_val,
-        valid,
-        _,
-        bbox_yaw,
-        _,
-        _,
-        _,
-        future_val,
-        predict,
+            agent_id,
+            xy,
+            current_val,
+            valid,
+            _,
+            bbox_yaw,
+            _,
+            _,
+            _,
+            future_val,
+            predict,
     ) in zip(
         Agent_id,
         XY,
@@ -667,24 +667,24 @@ def vectorize(
         local_roadlines_state = ROADLINES_STATE.copy()
 
         local_roadlines_state[:, :2] = (
-            local_roadlines_state[:, :2] - centered_xy
-        ) @ rot_matrix.astype(np.float64)
+                                               local_roadlines_state[:, :2] - centered_xy
+                                       ) @ rot_matrix.astype(np.float64)
 
         local_XY = ((XY - centered_xy).reshape(-1, 2) @ rot_matrix).reshape(
             128, n_channels, 2
         )
 
         for (
-            other_agent_id,
-            other_agent_type,
-            other_xy,
-            other_valids,
-            other_speeds,
-            other_bbox_yaws,
-            other_v_yaws,
-            other_w,
-            other_l,
-            other_predict,
+                other_agent_id,
+                other_agent_type,
+                other_xy,
+                other_valids,
+                other_speeds,
+                other_bbox_yaws,
+                other_v_yaws,
+                other_w,
+                other_l,
+                other_predict,
         ) in zip(
             Agent_id,
             Agent_type,
@@ -702,11 +702,11 @@ def vectorize(
 
             GLOBAL_IDX += 1
             for timestamp, (
-                (x, y),
-                v,
-                other_speed,
-                other_v_yaw,
-                other_bbox_yaw,
+                    (x, y),
+                    v,
+                    other_speed,
+                    other_v_yaw,
+                    other_bbox_yaw,
             ) in enumerate(
                 zip(other_xy, other_valids, other_speeds, other_v_yaws, other_bbox_yaws)
             ):
@@ -739,7 +739,7 @@ def vectorize(
 
 
 def merge(
-    data, proc_id, validate, out_dir, use_vectorize=False, max_rand_int=10000000000, exclude_road=False
+        data, proc_id, validate, out_dir, use_vectorize=False, max_rand_int=10000000000, exclude_road=False
 ):
     parsed = tf.io.parse_single_example(data, features_description)
     raster_data = rasterize(
@@ -805,8 +805,11 @@ def merge(
         if use_vectorize:
             raster_data[i]["vector_data"] = vector_data[i].astype(np.float16)
 
-        r = np.random.randint(max_rand_int)
-        filename = f"{idx2type[int(raster_data[i]['self_type'])]}_{proc_id}_{str(i).zfill(5)}_{r}.npz"
+        # filename = f"{idx2type[int(raster_data[i]['self_type'])]}_{proc_id}_{str(i).zfill(5)}.npz"
+        filename = f"scid_{raster_data[i]['scenario_id']}" \
+                   f"__aid_{int(raster_data[i]['object_id'])}" \
+                   f"__atype_{int(raster_data[i]['self_type'])}.npz"
+
         np.savez_compressed(os.path.join(out_dir, filename), **raster_data[i])
 
 
