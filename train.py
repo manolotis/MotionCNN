@@ -41,6 +41,13 @@ def parse_args():
         help="Input images resolution",
     )
     parser.add_argument(
+        "--patience",
+        type=int,
+        required=False,
+        default=100,
+        help="Stop after this many number of epochs without improvement",
+    )
+    parser.add_argument(
         "--in-channels",
         type=int,
         required=False,
@@ -219,7 +226,19 @@ class WaymoLoader(Dataset):
         is_available = data["future_val_marginal"]
 
         if self.return_vector:
-            return raster, trajectory, is_available, data["vector_data"]
+            try:
+                extra_data = {
+                    "scenario_id": data["scenario_id"].item(),
+                    "agent_type": int(data["self_type"][0]),
+                    "agent_id": int(data["object_id"]),
+                }
+            except IndexError:
+                print("scenario_id", data["scenario_id"])
+                print("agent_id", data["object_id"])
+                print("self type", data["self_type"])
+                raise IndexError
+
+            return raster, trajectory, is_available, data["vector_data"], extra_data
 
         return raster, trajectory, is_available
 
@@ -298,6 +317,7 @@ def main():
         os.path.join(path_to_save, name),
     )
 
+    epochs_without_improvement = 0
     for epoch in range(n_epochs):
         progress_bar = tqdm(range(start_iter, len(dataloader)))
 
@@ -356,6 +376,7 @@ def main():
                 if mean_val_loss < best_loss:
                     best_loss = mean_val_loss
                     saver("model_best.pth")
+                    epochs_without_improvement = 0
 
                     model.eval()
                     with torch.no_grad():
@@ -368,6 +389,8 @@ def main():
 
                     traced_model.save(os.path.join(path_to_save, "model_best.pt"))
                     del traced_model
+
+        epochs_without_improvement += 1
 
 
 if __name__ == "__main__":

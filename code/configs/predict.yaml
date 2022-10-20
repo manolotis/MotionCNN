@@ -1,0 +1,21 @@
+test:
+  normalize: True
+  data_config:
+    dataset_config:
+      data_path: "/home/manolotis/sandbox/robustness_benchmark/motionCNN/data/prerendered/testing/"
+      mask_history: False
+      n_shards: 1
+    dataloader_config:
+      batch_size: 8
+      shuffle: False
+      num_workers: 8
+  output_config:
+    visualize: False
+    out_path: "/home/manolotis/sandbox/robustness_benchmark/motionCNN/predictions/"
+    viz_path: "/home/manolotis/sandbox/robustness_benchmark/motionCNN/plots/predictions/"
+
+
+model:
+  name: "xception71"
+  path: "/home/manolotis/sandbox/robustness_benchmark/motionCNN/trained_models/"
+

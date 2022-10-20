@@ -1,4 +1,5 @@
 data/
 trained_models/
 plots/
+predictions/
 __pycache__/
