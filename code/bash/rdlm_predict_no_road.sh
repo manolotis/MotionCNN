@@ -6,4 +6,4 @@ python /home/manolotis/sandbox/robustness_benchmark/motionCNN/predict.py \
   --n-shards 1 \
   --out-path "/home/manolotis/sandbox/robustness_benchmark/motionCNN/predictions/"\
   --model-name "xception71" \
-  --model-name-additon "no_road"
+  --model-name-addition "no_road"
