@@ -7,6 +7,7 @@ def parse_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument("--test-data-path", type=str, required=False, help="Path to prerendered training data")
     parser.add_argument("--model-name", type=str, required=False, help="Model to load")
+    parser.add_argument("--model-name-addition", type=str, required=False, help="Addition for savefolder")
     parser.add_argument("--out-path", type=str, required=False, help="Path to predictions folder")
     parser.add_argument("--viz-path", type=str, required=False, help="Path to visualization folder")
 
@@ -32,6 +33,8 @@ def get_config(args):
 
     if args.model_name is not None:
         config["model"]["name"] = args.model_name
+    if args.model_name_addition is not None:
+        config["model"]["name_addition"] = args.model_name_addition
 
     if args.out_path is not None:
         config["test"]["output_config"]["out_path"] = args.out_path

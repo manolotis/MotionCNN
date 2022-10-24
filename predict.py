@@ -1,4 +1,5 @@
 import sys
+
 sys.path.append("/home/manolotis/sandbox/robustness_benchmark/")
 import os
 import numpy as np
@@ -22,7 +23,11 @@ torch.backends.cudnn.deterministic = True
 args = parse_arguments()
 config = get_config(args)
 
-savefolder = os.path.join(config["test"]["output_config"]["out_path"], config["model"]["name"])
+model_name = config["model"]["name"]
+if "name_addition" in config["model"]:
+    model_name = config["model"]["name"] + "_" + config["model"]["name_addition"]
+
+savefolder = os.path.join(config["test"]["output_config"]["out_path"], model_name)
 
 if not os.path.exists(savefolder):
     os.makedirs(savefolder, exist_ok=True)
