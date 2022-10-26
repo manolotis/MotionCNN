@@ -212,6 +212,13 @@ def parse_arguments():
         required=False,
         help="Exclude road from prerender",
     )
+    parser.add_argument(
+        "--hide-target-past",
+        type=bool,
+        default=False,
+        required=False,
+        help="Mark all agent history as invalid except the current timestep",
+    )
 
     args = parser.parse_args()
 
@@ -250,6 +257,7 @@ def rasterize(
         magic_const=3,
         n_channels=11,
         exclude_road=False,
+        hide_target_past=False
 ):
     GRES = []
     displacement = np.array([[raster_size // 4, raster_size // 2]]) * shift
@@ -407,6 +415,15 @@ def rasterize(
             agent_l = lengths[agents_ids == other_agent_id]
             agent_w = widths[agents_ids == other_agent_id]
 
+            if is_ego and hide_target_past:
+                agent_lane_cp = np.copy(agent_lane)
+                agent_valid_cp = np.copy(agent_valid)
+                agent_yaw_cp = np.copy(agent_yaw)
+
+                agent_lane[:-1, :] = -1
+                agent_valid[..., :-1] = 0
+                agent_yaw[..., :-1] = -1
+
             for timestamp, (coord, valid_coordinate, past_yaw,) in enumerate(
                     zip(
                         agent_lane,
@@ -467,6 +484,11 @@ def rasterize(
                         color=MAX_PIXEL_VALUE,
                         shift=9,
                     )
+
+            if is_ego and hide_target_past:  # put back to normal:
+                agent_lane = np.copy(agent_lane_cp)
+                agent_valid = np.copy(agent_valid_cp)
+                agent_yaw = np.copy(agent_yaw_cp)
 
         if exclude_road:
             # override previous
@@ -739,7 +761,14 @@ def vectorize(
 
 
 def merge(
-        data, proc_id, validate, out_dir, use_vectorize=False, max_rand_int=10000000000, exclude_road=False
+        data,
+        proc_id,
+        validate,
+        out_dir,
+        use_vectorize=False,
+        max_rand_int=10000000000,
+        exclude_road=False,
+        hide_target_past=False,
 ):
     parsed = tf.io.parse_single_example(data, features_description)
     raster_data = rasterize(
@@ -768,7 +797,8 @@ def merge(
         parsed["state/future/valid"].numpy(),
         parsed["scenario/id"].numpy()[0].decode("utf-8"),
         validate=validate,
-        exclude_road=exclude_road
+        exclude_road=exclude_road,
+        hide_target_past=hide_target_past
     )
 
     if use_vectorize:
@@ -841,7 +871,8 @@ def main():
                     validate=not args.no_valid,
                     out_dir=args.out,
                     use_vectorize=args.use_vectorize,
-                    exclude_road=args.exclude_road
+                    exclude_road=args.exclude_road,
+                    hide_target_past=args.hide_target_past
                 ),
             )
         )
