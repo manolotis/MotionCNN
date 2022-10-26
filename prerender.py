@@ -219,6 +219,13 @@ def parse_arguments():
         required=False,
         help="Mark all agent history as invalid except the current timestep",
     )
+    parser.add_argument(
+        "--noisy-heading",
+        type=bool,
+        default=False,
+        required=False,
+        help="Noisy heading (only last timestep for now, offset 90deg)",
+    )
 
     args = parser.parse_args()
 
@@ -257,7 +264,8 @@ def rasterize(
         magic_const=3,
         n_channels=11,
         exclude_road=False,
-        hide_target_past=False
+        hide_target_past=False,
+        noisy_heading=False
 ):
     GRES = []
     displacement = np.array([[raster_size // 4, raster_size // 2]]) * shift
@@ -344,6 +352,9 @@ def rasterize(
             for _ in range(n_channels)
         ]
 
+        if noisy_heading:
+            yaw += np.pi / 2
+
         xy_val = xy[val > 0]
         if len(xy_val) == 0:
             continue
@@ -414,6 +425,9 @@ def rasterize(
 
             agent_l = lengths[agents_ids == other_agent_id]
             agent_w = widths[agents_ids == other_agent_id]
+
+            if is_ego and noisy_heading:
+                agent_yaw += np.pi / 2
 
             if is_ego and hide_target_past:
                 agent_lane_cp = np.copy(agent_lane)
@@ -510,6 +524,8 @@ def rasterize(
             "scenario_id": scenario_id,
             "self_type": self_type,
         }
+        if noisy_heading:
+            raster_dict["yaw_original"] = yaw - np.pi / 2
 
         GRES.append(raster_dict)
 
@@ -769,6 +785,7 @@ def merge(
         max_rand_int=10000000000,
         exclude_road=False,
         hide_target_past=False,
+        noisy_heading=False
 ):
     parsed = tf.io.parse_single_example(data, features_description)
     raster_data = rasterize(
@@ -798,7 +815,8 @@ def merge(
         parsed["scenario/id"].numpy()[0].decode("utf-8"),
         validate=validate,
         exclude_road=exclude_road,
-        hide_target_past=hide_target_past
+        hide_target_past=hide_target_past,
+        noisy_heading=noisy_heading
     )
 
     if use_vectorize:
@@ -872,7 +890,8 @@ def main():
                     out_dir=args.out,
                     use_vectorize=args.use_vectorize,
                     exclude_road=args.exclude_road,
-                    hide_target_past=args.hide_target_past
+                    hide_target_past=args.hide_target_past,
+                    noisy_heading=args.noisy_heading
                 ),
             )
         )
