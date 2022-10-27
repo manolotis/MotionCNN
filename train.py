@@ -31,7 +31,13 @@ def parse_args():
         "--train-data", type=str, required=True, help="Path to rasterized data"
     )
     parser.add_argument(
+        "--train-data-noisy", type=str, required=False, help="Path to rasterized noisy data"
+    )
+    parser.add_argument(
         "--dev-data", type=str, required=True, help="Path to rasterized data"
+    )
+    parser.add_argument(
+        "--dev-data-noisy", type=str, required=False, help="Path to rasterized noisy data"
     )
     parser.add_argument(
         "--img-res",
@@ -81,6 +87,9 @@ def parse_args():
 
     parser.add_argument(
         "--model", type=str, required=False, default="xception71", help="CNN model name"
+    )
+    parser.add_argument(
+        "--model-name-addition", type=str, required=False, default="", help="CNN model name addition"
     )
     parser.add_argument("--lr", type=float, required=False, default=1e-3)
     parser.add_argument("--batch-size", type=int, required=False, default=48)
@@ -179,9 +188,13 @@ def pytorch_neg_multi_log_likelihood_batch(gt, logits, confidences, avails):
 
 
 class WaymoLoader(Dataset):
-    def __init__(self, directory, limit=0, n_shards=1, return_vector=False, is_test=False):
+    def __init__(self, directory, directory_noisy=None, limit=0, n_shards=1, return_vector=False, is_test=False):
         files = os.listdir(directory)
         self.files = [os.path.join(directory, f) for f in files if f.endswith(".npz")]
+        if directory_noisy is not None:
+            files_noisy = os.listdir(directory_noisy)
+            files_noisy = [os.path.join(directory_noisy, f) for f in files_noisy if f.endswith(".npz")]
+            self.files.extend(files_noisy)
 
         if limit > 0 and n_shards > 1:
             raise ValueError("Limiting training data with limit>0 and n_shards>1. Choose one or the other.")
@@ -249,12 +262,14 @@ def main():
     summary_writer = SummaryWriter(os.path.join(args.save, "logs"))
 
     train_path = args.train_data
+    train_path_noisy = args.train_data_noisy
     dev_path = args.dev_data
+    dev_path_noisy = args.dev_data_noisy
     path_to_save = args.save
     if not os.path.exists(path_to_save):
         os.mkdir(path_to_save)
 
-    dataset = WaymoLoader(train_path, n_shards=args.n_shards)
+    dataset = WaymoLoader(train_path, directory_noisy=train_path_noisy, n_shards=args.n_shards)
 
     batch_size = args.batch_size
     num_workers = min(args.n_jobs, batch_size)
@@ -267,7 +282,7 @@ def main():
         persistent_workers=True,
     )
 
-    val_dataset = WaymoLoader(dev_path, limit=args.valid_limit)
+    val_dataset = WaymoLoader(dev_path, directory_noisy=dev_path_noisy, limit=args.valid_limit)
     val_dataloader = DataLoader(
         val_dataset,
         batch_size=batch_size * 2,
@@ -348,7 +363,8 @@ def main():
                     f"loss: {loss.item():.3} |"
                     f" avg: {np.mean(glosses[-100:]):.2} |"
                     f" lr: {scheduler.get_last_lr()[-1]} |"
-                    f" epoch: {epoch}"
+                    f" epoch: {epoch} |"
+                    f" ewi: {epochs_without_improvement}"
                 )
                 summary_writer.add_scalar("train/loss", loss.item(), iteration)
                 summary_writer.add_scalar("lr", scheduler.get_last_lr()[-1], iteration)
@@ -376,6 +392,7 @@ def main():
                 if mean_val_loss < best_loss:
                     best_loss = mean_val_loss
                     saver("model_best.pth")
+                    print("Best validation loss, saving model")
                     epochs_without_improvement = 0
 
                     model.eval()
@@ -391,6 +408,10 @@ def main():
                     del traced_model
 
         epochs_without_improvement += 1
+
+        if epochs_without_improvement >= args.patience:
+            print("Maximum patience reached. Stopping training")
+            break
 
 
 if __name__ == "__main__":
