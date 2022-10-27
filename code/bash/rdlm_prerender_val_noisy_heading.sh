@@ -3,4 +3,5 @@ CUDA_VISIBLE_DEVICES=-1 python /home/manolotis/sandbox/robustness_benchmark/moti
     --out "/home/manolotis/datasets/waymo/motion v1.0/prerender/motionCNN/validation_noisy_heading/" \
     --use-vectorize \
     --n-shards 1 \
-    --noisy-heading True
+    --noisy-heading True \
+    --n-jobs 50

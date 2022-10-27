@@ -3,4 +3,5 @@ CUDA_VISIBLE_DEVICES=-1 python /home/manolotis/sandbox/robustness_benchmark/moti
     --out "/home/manolotis/datasets/waymo/motion v1.0/prerender/motionCNN/validation_no_road/" \
     --use-vectorize \
     --n-shards 1 \
-    --exclude-road True
+    --exclude-road True \
+    --n-jobs 50
