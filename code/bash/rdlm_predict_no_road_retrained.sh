@@ -6,7 +6,7 @@ python /home/manolotis/sandbox/robustness_benchmark/motionCNN/predict.py \
   --n-shards 1 \
   --out-path "/home/manolotis/sandbox/robustness_benchmark/motionCNN/predictions/"\
   --model-name "xception71_no_road" \
-  --model-name-addition "no_road_retrained"
+  --model-name-addition "retrained"
 
 python /home/manolotis/sandbox/robustness_benchmark/motionCNN/predict.py \
   --config /home/manolotis/sandbox/robustness_benchmark/motionCNN/code/configs/predict.yaml \
@@ -16,4 +16,4 @@ python /home/manolotis/sandbox/robustness_benchmark/motionCNN/predict.py \
   --n-shards 1 \
   --out-path "/home/manolotis/sandbox/robustness_benchmark/motionCNN/predictions/"\
   --model-name "xception71_no_road" \
-  --model-name-addition "no_road_retrained_unperturbed"
+  --model-name-addition "retrained_unperturbed"
