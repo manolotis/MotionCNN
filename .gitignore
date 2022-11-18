@@ -3,3 +3,4 @@ trained_models/
 plots/
 predictions/
 __pycache__/
+**/*.npz
