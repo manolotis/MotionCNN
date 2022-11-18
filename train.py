@@ -387,6 +387,7 @@ def main():
                     summary_writer.add_scalar("dev/loss", np.mean(val_losses), iteration)
 
                 saver("model_last.pth")
+                saver(f"model_e{epoch}_it{iteration}.pth")
 
                 mean_val_loss = np.mean(val_losses)
                 if mean_val_loss < best_loss:

@@ -2,7 +2,7 @@ MODEL_NAME=xception71
 python /home/manolotis/sandbox/robustness_benchmark/motionCNN/train.py \
     --train-data "/home/manolotis/datasets/waymo/motion v1.0/prerender/motionCNN/training/" \
     --dev-data "/home/manolotis/datasets/waymo/motion v1.0/prerender/motionCNN/validation/" \
-    --save /home/manolotis/sandbox/robustness_benchmark/motionCNN/trained_models/${MODEL_NAME} \
+    --save /home/manolotis/sandbox/robustness_benchmark/motionCNN/trained_models/${MODEL_NAME}_full \
     --model ${MODEL_NAME} \
     --img-res 224 \
     --in-channels 25 \
@@ -12,4 +12,5 @@ python /home/manolotis/sandbox/robustness_benchmark/motionCNN/train.py \
     --batch-size 128 \
     --n-epochs 1000 \
     --n-jobs 48 \
-    --n-shards 1
+    --n-shards 1 \
+    --patience 50
