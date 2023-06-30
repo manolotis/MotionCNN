@@ -1,6 +1,3 @@
-import sys
-
-sys.path.append("/home/manolotis/sandbox/robustness_benchmark/")
 import os
 import numpy as np
 import torch

@@ -1,3 +1,4 @@
+# ToDo: move to waymo_utils repo
 import argparse
 import os
 
@@ -96,7 +97,6 @@ def main():
                         label=f"pred {traj_id} {alpha:.3f}",
                         alpha=alpha,
                     )
-
 
             plt.title(loss.item())
             plt.legend()

@@ -4,3 +4,5 @@ plots/
 predictions/
 __pycache__/
 **/*.npz
+evaluations
+evaluations_per_example

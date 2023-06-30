@@ -2,8 +2,8 @@ import argparse
 
 # chage this if you have problem
 import sys
-sys.path.insert(1, "~/.local/lib/python3.6/site-packages")
 
+sys.path.insert(1, "~/.local/lib/python3.6/site-packages")
 
 import numpy as np
 import torch
@@ -74,7 +74,7 @@ def main():
             center = center.cpu().numpy()
             yaw = yaw.cpu().numpy()
             for p, conf, aid, sid, c, y in zip(
-                logits, confidences, agent_id, scenario_id, center, yaw
+                    logits, confidences, agent_id, scenario_id, center, yaw
             ):
                 if sid not in RES:
                     RES[sid] = []

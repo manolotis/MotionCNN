@@ -1,17 +1,31 @@
-# Waymo motion prediction challenge 2021: 3rd place solution 
+### MotionCNN
+
+This repository contains an CNN-based model used in Muñoz Sánchez et al. "Robustness Benchmark of Road User Trajectory
+Prediction Models for Automated Driving" presented at The 22nd World Congress of the International Federation of
+Automatic Control (IFAC 2023). This is a forked and adapted repository of MotionCNN. The original README is below.
+
+
+
+-------------------------
+
+# Waymo motion prediction challenge 2021: 3rd place solution
 
 ![header](docs/header.png)
 
-- 📜[**Paper**](https://arxiv.org/abs/2206.02163)  
-- 🗨️[Presentation](./docs/waymo_motion_prediction_2021_3rd_place_solution_presentation.pdf)  
-- 🎉[Announcement](https://youtu.be/eOL_rCK59ZI?t=6485)    
-- 🛆[Motion Prediction Channel Website](https://waymo.com/open/challenges/2021/motion-prediction/)  
-- 🛆[CVPR2021 workshop](http://cvpr2021.wad.vision/)  
+- 📜[**Paper**](https://arxiv.org/abs/2206.02163)
+- 🗨️[Presentation](./docs/waymo_motion_prediction_2021_3rd_place_solution_presentation.pdf)
+- 🎉[Announcement](https://youtu.be/eOL_rCK59ZI?t=6485)
+- 🛆[Motion Prediction Channel Website](https://waymo.com/open/challenges/2021/motion-prediction/)
+- 🛆[CVPR2021 workshop](http://cvpr2021.wad.vision/)
 
--  **UPDATE❗** Related repo with [3rd place solution code](https://github.com/stepankonev/waymo-motion-prediction-challenge-2022-multipath-plus-plus) for Waymo Motion Prediction Challenge 2022 
+- **UPDATE❗** Related repo
+  with [3rd place solution code](https://github.com/stepankonev/waymo-motion-prediction-challenge-2022-multipath-plus-plus)
+  for Waymo Motion Prediction Challenge 2022
 
 ## Team behind this solution:
-1. Artsiom Sanakoyeu [[Homepage](https://gdude.de)] [[Twitter](https://twitter.com/artsiom_s)] [[Telegram Channel](https://t.me/gradientdude)] [[LinkedIn](https://www.linkedin.com/in/sanakoev)]
+
+1. Artsiom
+   Sanakoyeu [[Homepage](https://gdude.de)] [[Twitter](https://twitter.com/artsiom_s)] [[Telegram Channel](https://t.me/gradientdude)] [[LinkedIn](https://www.linkedin.com/in/sanakoev)]
 2. Stepan Konev [[LinkedIn]](https://www.linkedin.com/in/stepan-konev/)
 3. Kirill Brodt [[GitHub]](https://github.com/kbrodt)
 
@@ -70,7 +84,6 @@ python submit.py \
     --save ${SAVE}
 ```
 
-
 ## Visualize predictions
 
 ```bash
@@ -81,7 +94,9 @@ python visualize.py \
 ```
 
 ## Citation
+
 If you find our work useful, please cite it as:
+
 ```
 @article{konev2021motioncnn,
   title={MotionCNN: A Strong Baseline for Motion Prediction in Autonomous Driving},
