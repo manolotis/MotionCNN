@@ -1,4 +1,11 @@
+data/
+trained_models/
+plots/
+predictions/
 __pycache__/
+**/*.npz
+evaluations
+evaluations_per_example
 prerender/
 venv/
 waymo_motion_prediction_orig_dirty_code_trained_model.zip

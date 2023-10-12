@@ -1,0 +1,9 @@
+- data_config:
+    dataset_config:
+      data_path: "/home/manolotis/sandbox/robustness_benchmark/motionCNN/predictions/"
+    dataloader_config:
+      num_workers: 32
+  output_config:
+    out_path: "/home/manolotis/sandbox/robustness_benchmark/motionCNN/evaluations/"
+  model:
+    name: "xception71_no_past"

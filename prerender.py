@@ -210,6 +210,27 @@ def parse_arguments():
         required=False,
         help="Take `each` sample in shard",
     )
+    parser.add_argument(
+        "--exclude-road",
+        type=bool,
+        default=False,
+        required=False,
+        help="Exclude road from prerender",
+    )
+    parser.add_argument(
+        "--hide-target-past",
+        type=bool,
+        default=False,
+        required=False,
+        help="Mark all agent history as invalid except the current timestep",
+    )
+    parser.add_argument(
+        "--noisy-heading",
+        type=bool,
+        default=False,
+        required=False,
+        help="Noisy heading (only last timestep for now, offset 90deg)",
+    )
 
     args = parser.parse_args()
 
@@ -218,7 +239,7 @@ def parse_arguments():
 
 def rasterize(
         tracks_to_predict,
-        past_x,
+        past_x,gitignore
         past_y,
         current_x,
         current_y,
@@ -247,6 +268,9 @@ def rasterize(
         shift=2 ** 9,
         magic_const=3,
         n_channels=11,
+        exclude_road=False,
+        hide_target_past=False,
+        noisy_heading=False
 ):
     GRES = []
     displacement = np.array([[raster_size // 4, raster_size // 2]]) * shift
@@ -334,6 +358,9 @@ def rasterize(
             for _ in range(n_channels)
         ]
 
+        if noisy_heading:
+            yaw += np.pi / 2
+
         xy_val = xy[val > 0]
         if len(xy_val) == 0:
             continue
@@ -388,7 +415,8 @@ def rasterize(
         _tmp = 0
         for other_agent_id in unique_agent_ids:
             other_agent_id = int(other_agent_id)
-            if other_agent_id < 1:
+            # if other_agent_id < 1:
+            if other_agent_id < 0:  # invalid
                 continue
             if other_agent_id == agent_id:
                 is_ego = True
@@ -403,6 +431,18 @@ def rasterize(
 
             agent_l = lengths[agents_ids == other_agent_id]
             agent_w = widths[agents_ids == other_agent_id]
+
+            if is_ego and noisy_heading:
+                agent_yaw += np.pi / 2
+
+            if is_ego and hide_target_past:
+                agent_lane_cp = np.copy(agent_lane)
+                agent_valid_cp = np.copy(agent_valid)
+                agent_yaw_cp = np.copy(agent_yaw)
+
+                agent_lane[:-1, :] = -1
+                agent_valid[..., :-1] = 0
+                agent_yaw[..., :-1] = -1
 
             for timestamp, (coord, valid_coordinate, past_yaw,) in enumerate(
                     zip(
@@ -465,6 +505,16 @@ def rasterize(
                         shift=9,
                     )
 
+            if is_ego and hide_target_past:  # put back to normal:
+                agent_lane = np.copy(agent_lane_cp)
+                agent_valid = np.copy(agent_valid_cp)
+                agent_yaw = np.copy(agent_yaw_cp)
+
+        if exclude_road:
+            # override previous
+            RES_ROADMAP = (
+                    np.ones((raster_size, raster_size, 3), dtype=np.uint8) * MAX_PIXEL_VALUE
+            )
         raster = np.concatenate([RES_ROADMAP] + RES_EGO + RES_OTHER, axis=2)
 
         raster_dict = {
@@ -482,6 +532,8 @@ def rasterize(
             "scenario_id": scenario_id,
             "self_type": self_type,
         }
+        if noisy_heading:
+            raster_dict["yaw_original"] = yaw - np.pi / 2
 
         GRES.append(raster_dict)
 
@@ -735,7 +787,15 @@ def vectorize(
 
 
 def merge(
-        data, proc_id, validate, out_dir, use_vectorize=False, max_rand_int=10000000000
+        data,
+        proc_id,
+        validate,
+        out_dir,
+        use_vectorize=False,
+        max_rand_int=10000000000,
+        exclude_road=False,
+        hide_target_past=False,
+        noisy_heading=False
 ):
     parsed = tf.io.parse_single_example(data, features_description)
     raster_data = rasterize(
@@ -764,6 +824,9 @@ def merge(
         parsed["state/future/valid"].numpy(),
         parsed["scenario/id"].numpy()[0].decode("utf-8"),
         validate=validate,
+        exclude_road=exclude_road,
+        hide_target_past=hide_target_past,
+        noisy_heading=noisy_heading
     )
 
     if use_vectorize:
@@ -800,8 +863,11 @@ def merge(
         if use_vectorize:
             raster_data[i]["vector_data"] = vector_data[i].astype(np.float16)
 
-        r = np.random.randint(max_rand_int)
-        filename = f"{idx2type[int(raster_data[i]['self_type'])]}_{proc_id}_{str(i).zfill(5)}_{r}.npz"
+        # filename = f"{idx2type[int(raster_data[i]['self_type'])]}_{proc_id}_{str(i).zfill(5)}.npz"
+        filename = f"scid_{raster_data[i]['scenario_id']}" \
+                   f"__aid_{int(raster_data[i]['object_id'])}" \
+                   f"__atype_{int(raster_data[i]['self_type'])}.npz"
+
         np.savez_compressed(os.path.join(out_dir, filename), **raster_data[i])
 
 
@@ -848,9 +914,26 @@ def main():
 
     for data in tqdm(dataset.as_numpy_iterator()):
         proc_id += 1
-        kwds = dict(data=data, proc_id=proc_id, validate=not args.no_valid, out_dir=args.out,
-                    use_vectorize=args.use_vectorize)
-        merge(**kwds)
+
+        res.append(
+            p.apply_async(
+                merge,
+                kwds=dict(
+                    data=data,
+                    proc_id=proc_id,
+                    validate=not args.no_valid,
+                    out_dir=args.out,
+                    use_vectorize=args.use_vectorize,
+                    exclude_road=args.exclude_road,
+                    hide_target_past=args.hide_target_past,
+                    noisy_heading=args.noisy_heading
+                ),
+            )
+        )
+
+    for r in tqdm(res):
+        r.get()
+
 
 
 if __name__ == "__main__":

@@ -8,6 +8,16 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
+import random
+
+seed = 0
+torch.manual_seed(seed)
+torch.cuda.manual_seed(seed)
+torch.cuda.manual_seed_all(seed)
+np.random.seed(seed)
+random.seed(seed)
+torch.backends.cudnn.benchmark = False
+torch.backends.cudnn.deterministic = True
 
 IMG_RES = 224
 IN_CHANNELS = 25
@@ -21,7 +31,13 @@ def parse_args():
         "--train-data", type=str, required=True, help="Path to rasterized data"
     )
     parser.add_argument(
+        "--train-data-noisy", type=str, required=False, help="Path to rasterized noisy data"
+    )
+    parser.add_argument(
         "--dev-data", type=str, required=True, help="Path to rasterized data"
+    )
+    parser.add_argument(
+        "--dev-data-noisy", type=str, required=False, help="Path to rasterized noisy data"
     )
     parser.add_argument(
         "--img-res",
@@ -29,6 +45,13 @@ def parse_args():
         required=False,
         default=IMG_RES,
         help="Input images resolution",
+    )
+    parser.add_argument(
+        "--patience",
+        type=int,
+        required=False,
+        default=100,
+        help="Stop after this many number of epochs without improvement",
     )
     parser.add_argument(
         "--in-channels",
@@ -52,11 +75,21 @@ def parse_args():
         help="Number of trajectories to predict",
     )
     parser.add_argument(
+        "--n-jobs",
+        type=int,
+        required=False,
+        default=16,
+        help="Number of workers for data loading",
+    )
+    parser.add_argument(
         "--save", type=str, required=True, help="Path to save model and logs"
     )
 
     parser.add_argument(
         "--model", type=str, required=False, default="xception71", help="CNN model name"
+    )
+    parser.add_argument(
+        "--model-name-addition", type=str, required=False, default="", help="CNN model name addition"
     )
     parser.add_argument("--lr", type=float, required=False, default=1e-3)
     parser.add_argument("--batch-size", type=int, required=False, default=48)
@@ -70,12 +103,21 @@ def parse_args():
         default=10,
         help="Validate model each `n-validate` steps",
     )
+    # for now ignored. Model is validated on the last iteration of each epoch
     parser.add_argument(
         "--n-monitor-validate",
         type=int,
         required=False,
         default=1000,
         help="Validate model each `n-validate` steps",
+    )
+
+    parser.add_argument(
+        "--n-shards",
+        type=int,
+        required=False,
+        default=1,
+        help="n_shards",
     )
 
     args = parser.parse_args()
@@ -85,7 +127,7 @@ def parse_args():
 
 class Model(nn.Module):
     def __init__(
-        self, model_name, in_channels=IN_CHANNELS, time_limit=TL, n_traj=N_TRAJS
+            self, model_name, in_channels=IN_CHANNELS, time_limit=TL, n_traj=N_TRAJS
     ):
         super().__init__()
 
@@ -98,13 +140,12 @@ class Model(nn.Module):
             num_classes=self.n_traj * 2 * self.time_limit + self.n_traj,
         )
 
-
     def forward(self, x):
         outputs = self.model(x)
 
         confidences_logits, logits = (
             outputs[:, : self.n_traj],
-            outputs[:, self.n_traj :],
+            outputs[:, self.n_traj:],
         )
         logits = logits.view(-1, self.n_traj, self.time_limit, 2)
 
@@ -133,7 +174,7 @@ def pytorch_neg_multi_log_likelihood_batch(gt, logits, confidences, avails):
     )  # reduce coords and use availability
 
     with np.errstate(
-        divide="ignore"
+            divide="ignore"
     ):  # when confidence is 0 log goes to -inf, but we're fine with it
         # error (batch_size, num_modes)
         error = nn.functional.log_softmax(confidences, dim=1) - 0.5 * torch.sum(
@@ -147,14 +188,22 @@ def pytorch_neg_multi_log_likelihood_batch(gt, logits, confidences, avails):
 
 
 class WaymoLoader(Dataset):
-    def __init__(self, directory, limit=0, return_vector=False, is_test=False):
+    def __init__(self, directory, directory_noisy=None, limit=0, n_shards=1, return_vector=False, is_test=False):
         files = os.listdir(directory)
         self.files = [os.path.join(directory, f) for f in files if f.endswith(".npz")]
+        if directory_noisy is not None:
+            files_noisy = os.listdir(directory_noisy)
+            files_noisy = [os.path.join(directory_noisy, f) for f in files_noisy if f.endswith(".npz")]
+            self.files.extend(files_noisy)
 
+        if limit > 0 and n_shards > 1:
+            raise ValueError("Limiting training data with limit>0 and n_shards>1. Choose one or the other.")
+
+        self.files = sorted(self.files)
         if limit > 0:
             self.files = self.files[:limit]
         else:
-            self.files = sorted(self.files)
+            self.files = [file for (i, file) in enumerate(self.files) if i % n_shards == 0]
 
         self.return_vector = return_vector
         self.is_test = is_test
@@ -190,7 +239,19 @@ class WaymoLoader(Dataset):
         is_available = data["future_val_marginal"]
 
         if self.return_vector:
-            return raster, trajectory, is_available, data["vector_data"]
+            try:
+                extra_data = {
+                    "scenario_id": data["scenario_id"].item(),
+                    "agent_type": int(data["self_type"][0]),
+                    "agent_id": int(data["object_id"]),
+                }
+            except IndexError:
+                print("scenario_id", data["scenario_id"])
+                print("agent_id", data["object_id"])
+                print("self type", data["self_type"])
+                raise IndexError
+
+            return raster, trajectory, is_available, data["vector_data"], extra_data
 
         return raster, trajectory, is_available
 
@@ -201,15 +262,17 @@ def main():
     summary_writer = SummaryWriter(os.path.join(args.save, "logs"))
 
     train_path = args.train_data
+    train_path_noisy = args.train_data_noisy
     dev_path = args.dev_data
+    dev_path_noisy = args.dev_data_noisy
     path_to_save = args.save
     if not os.path.exists(path_to_save):
         os.mkdir(path_to_save)
 
-    dataset = WaymoLoader(train_path)
+    dataset = WaymoLoader(train_path, directory_noisy=train_path_noisy, n_shards=args.n_shards)
 
     batch_size = args.batch_size
-    num_workers = min(16, batch_size)
+    num_workers = min(args.n_jobs, batch_size)
     dataloader = DataLoader(
         dataset,
         batch_size=batch_size,
@@ -219,7 +282,7 @@ def main():
         persistent_workers=True,
     )
 
-    val_dataset = WaymoLoader(dev_path, limit=args.valid_limit)
+    val_dataset = WaymoLoader(dev_path, directory_noisy=dev_path_noisy, limit=args.valid_limit)
     val_dataloader = DataLoader(
         val_dataset,
         batch_size=batch_size * 2,
@@ -249,12 +312,13 @@ def main():
     )
 
     start_iter = 0
+    start_epoch = 0
     best_loss = float("+inf")
     glosses = []
 
     tr_it = iter(dataloader)
     n_epochs = args.n_epochs
-    progress_bar = tqdm(range(start_iter, len(dataloader) * n_epochs))
+    # progress_bar = tqdm(range(start_iter, len(dataloader) * n_epochs))
 
     saver = lambda name: torch.save(
         {
@@ -268,71 +332,87 @@ def main():
         os.path.join(path_to_save, name),
     )
 
-    for iteration in progress_bar:
-        model.train()
-        try:
-            x, y, is_available = next(tr_it)
-        except StopIteration:
-            tr_it = iter(dataloader)
-            x, y, is_available = next(tr_it)
+    epochs_without_improvement = 0
+    for epoch in range(n_epochs):
+        progress_bar = tqdm(range(start_iter, len(dataloader)))
 
-        x, y, is_available = map(lambda x: x.cuda(), (x, y, is_available))
+        for iteration in progress_bar:
+            model.train()
+            try:
+                x, y, is_available = next(tr_it)
+            except StopIteration:
+                tr_it = iter(dataloader)
+                x, y, is_available = next(tr_it)
 
-        optimizer.zero_grad()
+            x, y, is_available = map(lambda x: x.cuda(), (x, y, is_available))
 
-        confidences_logits, logits = model(x)
-
-        loss = pytorch_neg_multi_log_likelihood_batch(
-            y, logits, confidences_logits, is_available
-        )
-        loss.backward()
-        optimizer.step()
-        scheduler.step()
-
-        glosses.append(loss.item())
-        if (iteration + 1) % args.n_monitor_train == 0:
-            progress_bar.set_description(
-                f"loss: {loss.item():.3}"
-                f" avg: {np.mean(glosses[-100:]):.2}"
-                f" {scheduler.get_last_lr()[-1]:.3}"
-            )
-            summary_writer.add_scalar("train/loss", loss.item(), iteration)
-            summary_writer.add_scalar("lr", scheduler.get_last_lr()[-1], iteration)
-
-        if (iteration + 1) % args.n_monitor_validate == 0:
             optimizer.zero_grad()
-            model.eval()
-            with torch.no_grad():
-                val_losses = []
-                for x, y, is_available in val_dataloader:
-                    x, y, is_available = map(lambda x: x.cuda(), (x, y, is_available))
 
-                    confidences_logits, logits = model(x)
-                    loss = pytorch_neg_multi_log_likelihood_batch(
-                        y, logits, confidences_logits, is_available
-                    )
-                    val_losses.append(loss.item())
+            confidences_logits, logits = model(x)
 
-                summary_writer.add_scalar("dev/loss", np.mean(val_losses), iteration)
+            loss = pytorch_neg_multi_log_likelihood_batch(
+                y, logits, confidences_logits, is_available
+            )
+            loss.backward()
+            optimizer.step()
+            scheduler.step()
 
-            saver("model_last.pth")
+            glosses.append(loss.item())
+            if (iteration + 1) % args.n_monitor_train == 0:
+                progress_bar.set_description(
+                    f"loss: {loss.item():.3} |"
+                    f" avg: {np.mean(glosses[-100:]):.2} |"
+                    f" lr: {scheduler.get_last_lr()[-1]} |"
+                    f" epoch: {epoch} |"
+                    f" ewi: {epochs_without_improvement}"
+                )
+                summary_writer.add_scalar("train/loss", loss.item(), iteration)
+                summary_writer.add_scalar("lr", scheduler.get_last_lr()[-1], iteration)
 
-            mean_val_loss = np.mean(val_losses)
-            if mean_val_loss < best_loss:
-                best_loss = mean_val_loss
-                saver("model_best.pth")
-
+            # if (iteration + 1) % args.n_monitor_validate == 0:
+            if (iteration + 1) % len(dataloader) == 0:
+                optimizer.zero_grad()
                 model.eval()
                 with torch.no_grad():
-                    traced_model = torch.jit.trace(
-                        model,
-                        torch.rand(
-                            1, args.in_channels, args.img_res, args.img_res
-                        ).cuda(),
-                    )
+                    val_losses = []
+                    for x, y, is_available in val_dataloader:
+                        x, y, is_available = map(lambda x: x.cuda(), (x, y, is_available))
 
-                traced_model.save(os.path.join(path_to_save, "model_best.pt"))
-                del traced_model
+                        confidences_logits, logits = model(x)
+                        loss = pytorch_neg_multi_log_likelihood_batch(
+                            y, logits, confidences_logits, is_available
+                        )
+                        val_losses.append(loss.item())
+
+                    summary_writer.add_scalar("dev/loss", np.mean(val_losses), iteration)
+
+                saver("model_last.pth")
+                saver(f"model_e{epoch}_it{iteration}.pth")
+
+                mean_val_loss = np.mean(val_losses)
+                if mean_val_loss < best_loss:
+                    best_loss = mean_val_loss
+                    saver("model_best.pth")
+                    print("Best validation loss, saving model")
+                    epochs_without_improvement = 0
+
+                    model.eval()
+                    with torch.no_grad():
+                        traced_model = torch.jit.trace(
+                            model,
+                            torch.rand(
+                                1, args.in_channels, args.img_res, args.img_res
+                            ).cuda(),
+                        )
+
+                    traced_model.save(os.path.join(path_to_save, "model_best.pt"))
+                    del traced_model
+
+        epochs_without_improvement += 1
+
+        if epochs_without_improvement >= args.patience:
+            print("Maximum patience reached. Stopping training")
+            break
 
 
 if __name__ == "__main__":

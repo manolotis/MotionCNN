@@ -1,3 +1,4 @@
+# ToDo: move to waymo_utils repo
 import argparse
 import os
 
@@ -38,7 +39,7 @@ def main():
 
     iii = 0
     with torch.no_grad():
-        for x, y, is_available, vector_data in loader:
+        for x, y, is_available, vector_data, extra in loader:
             x, y, is_available = map(lambda x: x.cuda(), (x, y, is_available))
 
             confidences_logits, logits = model(x)
@@ -96,7 +97,6 @@ def main():
                         label=f"pred {traj_id} {alpha:.3f}",
                         alpha=alpha,
                     )
-
 
             plt.title(loss.item())
             plt.legend()
