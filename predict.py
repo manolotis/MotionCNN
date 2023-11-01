@@ -1,3 +1,5 @@
+import sys
+sys.path.append("/home/manolotis/sandbox/scenario_based_evaluation/")
 import os
 import numpy as np
 import torch

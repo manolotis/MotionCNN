@@ -2,7 +2,7 @@ test:
   normalize: True
   data_config:
     dataset_config:
-      data_path: "/home/manolotis/sandbox/robustness_benchmark/motionCNN/data/prerendered/testing/"
+      data_path: "/home/manolotis/sandbox/scenario_based_evaluation/motionCNN/data/prerendered/testing/"
       mask_history: False
       n_shards: 1
     dataloader_config:
@@ -11,11 +11,11 @@ test:
       num_workers: 8
   output_config:
     visualize: False
-    out_path: "/home/manolotis/sandbox/robustness_benchmark/motionCNN/predictions/"
-    viz_path: "/home/manolotis/sandbox/robustness_benchmark/motionCNN/plots/predictions/"
+    out_path: "/home/manolotis/sandbox/scenario_based_evaluation/motionCNN/predictions/"
+    viz_path: "/home/manolotis/sandbox/scenario_based_evaluation/motionCNN/plots/predictions/"
 
 
 model:
   name: "xception71"
-  path: "/home/manolotis/sandbox/robustness_benchmark/motionCNN/trained_models/"
+  path: "/home/manolotis/sandbox/scenario_based_evaluation/motionCNN/trained_models/"
 

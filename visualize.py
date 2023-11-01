@@ -27,7 +27,7 @@ def parse_args():
 def main():
     args = parse_args()
     if not os.path.exists(args.save):
-        os.mkdir(args.save)
+        os.makedirs(args.save)
 
     model = torch.jit.load(args.model).cuda().eval()
     loader = DataLoader(

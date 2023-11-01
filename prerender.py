@@ -1,7 +1,6 @@
 import argparse
 import multiprocessing
 import os
-import time
 
 import cv2
 import numpy as np
@@ -10,7 +9,8 @@ from tqdm import tqdm
 
 # allow memory growth on GPU
 physical_devices = tf.config.list_physical_devices('GPU')
-tf.config.experimental.set_memory_growth(physical_devices[0], enable=True)
+if len(physical_devices) > 0:
+    tf.config.experimental.set_memory_growth(physical_devices[0], enable=True)
 
 roadgraph_features = {
     "roadgraph_samples/dir": tf.io.FixedLenFeature(
@@ -194,7 +194,7 @@ def parse_arguments():
         "--use-vectorize", action="store_true", help="Generate vector data"
     )
     parser.add_argument(
-        "--n-jobs", type=int, default=20, required=False, help="Number of threads"
+        "--n-jobs", type=int, default=8, required=False, help="Number of threads"
     )
     parser.add_argument(
         "--n-shards",
@@ -239,7 +239,7 @@ def parse_arguments():
 
 def rasterize(
         tracks_to_predict,
-        past_x,gitignore
+        past_x,
         past_y,
         current_x,
         current_y,
@@ -337,14 +337,14 @@ def rasterize(
             agents_ids,
             GT_XY,
             future_valid,
-            # tracks_to_predict.flatten(),
-            agents_ids.flatten() > -1,
+            tracks_to_predict.flatten(),
+            # agents_ids.flatten() > -1,
         )
     ):
         if (not validate and future_val.sum() == 0) or (validate and predict == 0):
             continue
-        # if current_val == 0:
-        #     continue
+        if current_val == 0:
+            continue
 
         RES_ROADMAP = (
                 np.ones((raster_size, raster_size, 3), dtype=np.uint8) * MAX_PIXEL_VALUE
@@ -525,10 +525,10 @@ def rasterize(
             "_gt_marginal": gt_xy,
             "gt_marginal": centered_gt,
             "future_val_marginal": future_val,
-            # "gt_joint": GT_XY[tracks_to_predict.flatten() > 0],
-            "gt_joint": GT_XY,
-            "future_val_joint": future_valid,
-            # "future_val_joint": future_valid[tracks_to_predict.flatten() > 0],
+            "gt_joint": GT_XY[tracks_to_predict.flatten() > 0],
+            # "gt_joint": GT_XY,
+            # "future_val_joint": future_valid,
+            "future_val_joint": future_valid[tracks_to_predict.flatten() > 0],
             "scenario_id": scenario_id,
             "self_type": self_type,
         }
@@ -684,14 +684,14 @@ def vectorize(
         W,
         L,
         future_valid,
-        # tracks_to_predict.flatten(),
-        Agent_id.flatten() > -1,
+        tracks_to_predict.flatten(),
+        # Agent_id.flatten() > -1,
     ):
 
         if (not validate and future_val.sum() == 0) or (validate and predict == 0):
             continue
-        # if current_val == 0:
-        #     continue
+        if current_val == 0:
+            continue
 
         GLOBAL_IDX = -1
         RES = []
@@ -742,8 +742,8 @@ def vectorize(
             Vyaw,
             W.flatten(),
             L.flatten(),
-            Agent_id.flatten() > 1,
-            # tracks_to_predict.flatten(),
+            # Agent_id.flatten() > 1,
+            tracks_to_predict.flatten(),
         ):
             if other_valids.sum() == 0:
                 continue
@@ -876,7 +876,7 @@ def main():
     print(args)
 
     if not os.path.exists(args.out):
-        os.mkdir(args.out)
+        os.makedirs(args.out)
 
     files = os.listdir(args.data)
     dataset = tf.data.TFRecordDataset(
@@ -885,31 +885,8 @@ def main():
     if args.n_shards > 1:
         dataset = dataset.shard(args.n_shards, args.each)
 
-    ####### Default multi-processing #########
-    # p = multiprocessing.Pool(args.n_jobs)
-    # p = multiprocessing.Pool(2)
-    # proc_id = 0
-    # res = []
-    # for data in tqdm(dataset.as_numpy_iterator()):
-    #     proc_id += 1
-    #     res.append(
-    #         p.apply_async(
-    #             merge,
-    #             kwds=dict(
-    #                 data=data,
-    #                 proc_id=proc_id,
-    #                 validate=not args.no_valid,
-    #                 out_dir=args.out,
-    #                 use_vectorize=args.use_vectorize,
-    #             ),
-    #         )
-    #     )
-    #
-    # for r in tqdm(res):
-    #     r.get()
-
-    ######## End multi-processing #########
-
+    res = []
+    p = multiprocessing.Pool(args.n_jobs)
     proc_id = 0
 
     for data in tqdm(dataset.as_numpy_iterator()):
@@ -933,7 +910,6 @@ def main():
 
     for r in tqdm(res):
         r.get()
-
 
 
 if __name__ == "__main__":
